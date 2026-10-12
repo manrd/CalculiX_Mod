@@ -253,7 +253,7 @@
      &         ipoinp,inp,ipoinpc)
           if((istat.lt.0).or.(key.eq.1)) exit
 !     
-          read(textpart(2)(1:10),'(i10)',iostat=istat) ibounstart
+          call fast_read_i10(textpart(2),ibounstart,istat)
           if(istat.gt.0) then
             call inputerror(inpc,ipoinpc,iline,
      &           "*BOUNDARY%",ier)
@@ -263,7 +263,7 @@
           if(textpart(3)(1:1).eq.' ') then
             ibounend=ibounstart
           else
-            read(textpart(3)(1:10),'(i10)',iostat=istat) ibounend
+            call fast_read_i10(textpart(3),ibounend,istat)
             if(istat.gt.0) then
               call inputerror(inpc,ipoinpc,iline,
      &             "*BOUNDARY%",ier)
@@ -273,7 +273,7 @@
           ibound=ibounend-ibounstart+1
           ibound=max(1,ibound)
 !     
-          read(textpart(1)(1:10),'(i10)',iostat=istat) l
+          call fast_read_i10(textpart(1),l,istat)
           if(istat.eq.0) then
             nboun_=nboun_+ibound
             if(ntrans_.gt.0) then
@@ -1170,7 +1170,7 @@ c     Bernhardi end
           call getnewline(inpc,textpart,istat,n,key,iline,ipol,inl,
      &     ipoinp,inp,ipoinpc)
           if((istat.lt.0).or.(key.eq.1)) exit
-          read(textpart(1)(1:10),'(i10)',iostat=istat) i
+          call fast_read_i10(textpart(1),i,istat)
           if(istat.gt.0) then
             call inputerror(inpc,ipoinpc,iline,
      &           "*ELEMENT or *ELEMENT OUTPUT%",ier)
@@ -1276,8 +1276,8 @@ c     !
             if(textpart(3)(1:1).eq.' ')
      &           textpart(3)='1        '
             do i=1,3
-              read(textpart(i)(1:10),'(i10)',iostat=istat) 
-     &             ialset(i)
+              call fast_read_i10(textpart(i),
+     &             ialset(i),istat)
               if(istat.gt.0) then
                 call inputerror(inpc,ipoinpc,iline,
      &               "*NSET or *ELSET%",ier)
@@ -1289,8 +1289,8 @@ c     !
             rmeminset(nn)=rmeminset(nn)+3
           else
             do i=1,n
-              read(textpart(i)(1:10),'(i10)',iostat=istat) 
-     &             ialset(i)
+              call fast_read_i10(textpart(i),
+     &             ialset(i),istat)
               if(istat.gt.0) then
                 noelset=textpart(i)(1:80)
                 noelset(81:81)=' '
@@ -1853,7 +1853,7 @@ c            nmpc_=nmpc_+3
         call getnewline(inpc,textpart,istat,n,key,iline,ipol,inl,
      &       ipoinp,inp,ipoinpc)
         if((istat.lt.0).or.(key.eq.1)) exit
-        read(textpart(1)(1:10),'(i10)',iostat=istat) i
+        call fast_read_i10(textpart(1),i,istat)
         if(istat.gt.0) then
           call inputerror(inpc,ipoinpc,iline,
      &         "*NODE or *NODE PRINT or *NODE FILE or *NODE OUTPUT%",

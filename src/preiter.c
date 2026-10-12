@@ -19,6 +19,11 @@
 #include <math.h>
 #include <stdlib.h>
 #include "CalculiX.h"
+#include "ccx_prof.h"
+
+extern ITG ccx_fast_cg_solve(const double *ad, const double *au, double *b,
+                             const ITG *icol, const ITG *irow, ITG neq, ITG nzs,
+                             double *eps, ITG *niter);
 
 void preiter(double *ad, double **aup, double *b, ITG **icolp, ITG **irowp, 
 	     ITG *neq, ITG *nzs, ITG *isolver, ITG *iperturb){
@@ -38,6 +43,17 @@ void preiter(double *ad, double **aup, double *b, ITG **icolp, ITG **irowp,
   au=*aup;
   irow=*irowp;
   icol=*icolp;
+
+  if(*isolver==2){
+    double _t_re0 = ccx_prof_ms();
+    ier = ccx_fast_cg_solve(ad, au, b, icol, irow, *neq, *nzs, &eps, &niter);
+    double _t_cg1 = ccx_prof_ms();
+    CCX_PROF_LOG("preiter: rearrange_sort=%.2f ms, cgsolver=%.2f ms [niter=%d, precFlg=0]",
+                 0.0, _t_cg1 - _t_re0, (int)niter);
+    printf("error condition (0=good, 1=bad) = %" ITGFORMAT "\n",ier);
+    printf("# of iterations = %" ITGFORMAT "\n",niter);
+    return;
+  }
 
   if(*iperturb>1){
     NNEW(irow_save,ITG,*nzs);
@@ -77,13 +93,18 @@ void preiter(double *ad, double **aup, double *b, ITG **icolp, ITG **irowp,
 
   /* rearranging the storage of the left hand side */
 
+  double _t_re0 = ccx_prof_ms();
   FORTRAN(rearrange,(au,irow,icol,&ndim,neq));
+  double _t_re1 = ccx_prof_ms();
 
   RENEW(irow,ITG,*neq);
 
   NNEW(u,double,*neq);
 
   ier=cgsolver(au,u,b,*neq,ndim,icol,irow,&eps,&niter,precFlg);
+  double _t_cg1 = ccx_prof_ms();
+  CCX_PROF_LOG("preiter: rearrange_sort=%.2f ms, cgsolver=%.2f ms [niter=%d, precFlg=%d]",
+               _t_re1 - _t_re0, _t_cg1 - _t_re1, (int)niter, (int)precFlg);
 
   printf("error condition (0=good, 1=bad) = %" ITGFORMAT "\n",ier);
   printf("# of iterations = %" ITGFORMAT "\n",niter);

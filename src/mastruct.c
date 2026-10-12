@@ -21,11 +21,12 @@
 #include <string.h>
 #include <pthread.h>
 #include "CalculiX.h"
+#include "ccx_prof.h"
 
 #define min(a,b) ((a) <= (b) ? (a) : (b))
 #define max(a,b) ((a) >= (b) ? (a) : (b))
 
-static ITG *neq1,*irow1,*mast11,*jq1,kflag1,num_cpus;
+static ITG *neq1,*irow1,*mast11,*jq1,*icol1,kflag1,num_cpus;
 
 void mastruct(ITG *nk, ITG *kon, ITG *ipkon, char *lakon, ITG *ne,
 	      ITG *nodeboun, ITG *ndirboun, ITG *nboun, ITG *ipompc,
@@ -103,6 +104,7 @@ void mastruct(ITG *nk, ITG *kon, ITG *ipkon, char *lakon, ITG *ne,
   irow=*irowp;
 
   kflag=1;
+  double _t_m0 = ccx_prof_ms();
 
   /* determining nactdof (only at start of step or if MPC's
      changed */
@@ -806,6 +808,7 @@ void mastruct(ITG *nk, ITG *kon, ITG *ipkon, char *lakon, ITG *ne,
   //        X X X  |x x x
 
   RENEW(irow,ITG,ifree);
+  double _t_ins = ccx_prof_ms();
   nmast=0;
   jq[0]=1;
   for(i=0;i<neq[1];i++){
@@ -817,6 +820,7 @@ void mastruct(ITG *nk, ITG *kon, ITG *ipkon, char *lakon, ITG *ne,
     }while(1);
     jq[i+1]=nmast+1;
   }
+  double _t_copy = ccx_prof_ms();
 
   /* sorting the row numbers within each column */
   
@@ -826,7 +830,7 @@ void mastruct(ITG *nk, ITG *kon, ITG *ipkon, char *lakon, ITG *ne,
   
   pthread_t tid[num_cpus];
 
-  neq1=neq;irow1=irow;mast11=mast1;jq1=jq;kflag1=kflag;
+  neq1=neq;irow1=irow;mast11=mast1;jq1=jq;icol1=icol;kflag1=kflag;
 	  
   NNEW(ithread,ITG,num_cpus);
   for(i=0; i<num_cpus; i++)  {
@@ -835,32 +839,30 @@ void mastruct(ITG *nk, ITG *kon, ITG *ipkon, char *lakon, ITG *ne,
   }
   for(i=0; i<num_cpus; i++)  pthread_join(tid[i], NULL);
   SFREE(ithread);
+  double _t_sort = ccx_prof_ms();
 
-  /* removing duplicate entries */
+  /* compacting already-deduplicated columns */
 
   nmast=0;
   for(i=0;i<neq[1];i++){
-    jstart=nmast+1;
-    if(jq[i+1]-jq[i]>0){
-      irow[nmast++]=irow[jq[i]-1];
-      for(j=jq[i];j<jq[i+1]-1;j++){
-	if(irow[j]==irow[nmast-1])continue;
-	irow[nmast++]=irow[j];
-      }
+    ITG u=icol[i];
+    ITG src=jq[i]-1;
+    if(u>0 && nmast!=src){
+      memmove(&irow[nmast],&irow[src],(size_t)u*sizeof(ITG));
     }
-    jq[i]=jstart;
+    jq[i]=nmast+1;
+    nmast+=u;
   }
   jq[neq[1]]=nmast+1;
-
-  for(i=0;i<neq[1];i++){
-    icol[i]=jq[i+1]-jq[i];
-  }
 
   if(neq[0]==0){
     nzs[0]=0;}
   else{
     nzs[0]=jq[neq[0]]-1;}
   nzs[1]=jq[neq[1]]-1;
+  double _t_dedup = ccx_prof_ms();
+  CCX_PROF_LOG("mastruct: total=%.2f ms (nactdof+insert=%.2f ms [ifree=%d], list_copy=%.2f ms, mt_sort=%.2f ms, dedup=%.2f ms [nmast=%d])",
+               _t_dedup - _t_m0, _t_ins - _t_m0, (int)ifree, _t_copy - _t_ins, _t_sort - _t_copy, _t_dedup - _t_sort, (int)nmast);
 
   /* summary */
 
@@ -951,7 +953,7 @@ void mastruct(ITG *nk, ITG *kon, ITG *ipkon, char *lakon, ITG *ne,
 
 void *sortingmt(ITG *i){
 
-  ITG neqa,neqb,neqdelta,j,isize;
+  ITG neqa,neqb,neqdelta,j,k,isize,u;
     
   neqdelta=(ITG)ceil(neq1[1]/(double)num_cpus);
   neqa=*i*neqdelta;
@@ -959,9 +961,21 @@ void *sortingmt(ITG *i){
   if(neqb>neq1[1]) neqb=neq1[1];
 
   for(j=neqa;j<neqb;++j){
-    if(jq1[j+1]-jq1[j]>0){
-      isize=jq1[j+1]-jq1[j];
-      FORTRAN(isortii,(&irow1[jq1[j]-1],&mast11[jq1[j]-1],&isize,&kflag1));
+    isize=jq1[j+1]-jq1[j];
+    if(isize>0){
+      ITG *col=&irow1[jq1[j]-1];
+      if(isize>1){
+	FORTRAN(isortii,(col,&mast11[jq1[j]-1],&isize,&kflag1));
+	u=1;
+	for(k=1;k<isize;++k){
+	  if(col[k]!=col[u-1]) col[u++]=col[k];
+	}
+	icol1[j]=u;
+      }else{
+	icol1[j]=1;
+      }
+    }else{
+      icol1[j]=0;
     }
   }
   

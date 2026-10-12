@@ -25,6 +25,7 @@
 #include <string.h>
 #include <locale.h>
 #include "CalculiX.h"
+#include "ccx_prof.h"
 
 #ifdef CALCULIX_MPI
 ITG myid = 0,nproc = 0;
@@ -165,8 +166,10 @@ int main(int argc,char *argv[])
 
   /* conservative estimate of the fields to be allocated */
 
+  double _t_ri0 = ccx_prof_ms();
   readinput(jobnamec,&inpc,&nline,&nset_,ipoinp,&inp,&ipoinpc,ithermal,&nuel_,
 	    &inp_size); 
+  double _t_ri1 = ccx_prof_ms();
 
   /* saving the original input deck reading pointers */
 
@@ -206,6 +209,8 @@ int main(int argc,char *argv[])
 		      &nobject_,iuel,&iprestr,&nstam,&ndamp,&nef,&nbounold,
 		      &nforcold,&nloadold,&nbodyold,&mpcend,irobustdesign,
 		      &nfc_,&ndc_,&maxsectors_,&ndmat_));
+  double _t_al1 = ccx_prof_ms();
+  CCX_PROF_LOG("CalculiX_init: readinput=%.2f ms, allocation=%.2f ms", _t_ri1 - _t_ri0, _t_al1 - _t_ri1);
 
   SFREE(meminset);SFREE(rmeminset);mt=mi[1]+1;
   NNEW(heading,char,66*nheading_);
@@ -622,6 +627,7 @@ int main(int argc,char *argv[])
 
     /* reading the input file */
 
+    double _t_ci0 = ccx_prof_ms();
     FORTRAN(calinput,(co,&nk,kon,ipkon,lakon,&nkon,&ne,nodeboun,ndirboun,xboun,
 		      &nboun,ipompc,nodempc,coefmpc,&nmpc,&nmpc_,nodeforc,
 		      ndirforc,xforc,&nforc,&nforc_,nelemload,sideload,xload,
@@ -652,6 +658,8 @@ int main(int argc,char *argv[])
 		      irobustdesign,irandomtype,randomval,&nfc,&nfc_,coeffc,
 		      ikdc,&ndc,&ndc_,edc,coini,&ndmat_,ndmcon,dmcon,dam,
 		      &irefineloop,&interfaceload));
+    double _t_ci1 = ccx_prof_ms();
+    if(istat>=0) CCX_PROF_LOG("CalculiX_step%d: calinput=%.2f ms", (int)istep, _t_ci1 - _t_ci0);
     
     SFREE(idefforc);SFREE(idefload);SFREE(idefbody);
 

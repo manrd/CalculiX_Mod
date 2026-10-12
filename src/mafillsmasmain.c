@@ -20,7 +20,9 @@
 #include <math.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <omp.h>
 #include "CalculiX.h"
+#include "ccx_prof.h"
 
 static char *lakon1,*sideload1,*matname1,*tieset1,*set1;
 
@@ -175,8 +177,14 @@ void mafillsmasmain(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne,
 
   /* allocating fields for mass and stiffness matrix */
 
-  NNEW(ad1,double,num_cpus*neq[1]);
-  NNEW(au1,double,(long long)num_cpus*(nzs[2]+nzs[1]));
+  double _t0 = ccx_prof_ms();
+  ad1 = ad;
+  au1 = au;
+  #pragma omp parallel for schedule(static) num_threads(num_cpus)
+  for(i=nzs[2];i<(nzs[2]+nzs[1]);i++){
+    au[i]=0.;
+  }
+  double _t_alloc = ccx_prof_ms();
 
   /* allocating memory for nmethod; if the Jacobian determinant
      in any of the elements is nonpositive, nmethod is set to
@@ -222,6 +230,7 @@ void mafillsmasmain(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne,
     
   /* create threads and wait */
     
+  double _t_mt0 = ccx_prof_ms();
   NNEW(ithread,ITG,num_cpus);
   for(i=0; i<num_cpus; i++)  {
     ithread[i]=i;
@@ -231,22 +240,10 @@ void mafillsmasmain(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne,
     
   SFREE(ithread);SFREE(neaparm);SFREE(nebparm);
   SFREE(neapart);SFREE(nebpart);
-    
-  /* copying and accumulating the stiffnes matrices */
-    
-  for(i=0;i<neq[1];i++){
-    for(j=0;j<num_cpus;j++){
-      ad[i]+=ad1[i+j*neq[1]];
-    }
-  }
-  SFREE(ad1);
-
-  for(i=0;i<(nzs[2]+nzs[1]);i++){
-    for(j=0;j<num_cpus;j++){
-      au[i]+=au1[i+(long long)j*(nzs[2]+nzs[1])];
-    }
-  }
-  SFREE(au1);
+  double _t_mt1 = ccx_prof_ms();
+  double _t_red = ccx_prof_ms();
+  CCX_PROF_LOG("mafillsmasmain: total=%.2f ms (calloc=%.2f ms, mt_elem=%.2f ms, serial_reduce=%.2f ms) [nt=%d, neq=%d, nzs2=%d]",
+               _t_red - _t0, _t_alloc - _t0, _t_mt1 - _t_mt0, _t_red - _t_mt1, (int)num_cpus, (int)neq[1], (int)(nzs[2]+nzs[1]));
 
   for(j=0;j<num_cpus;j++){
     if(nmethod1[j]==0){
@@ -269,9 +266,6 @@ void *mafillsmasmt(ITG *i){
 
   indexad=0;
   indexau=0;
-
-  indexad=*i*neq1[1];
-  indexau=(long long)*i*(nzs1[2]+nzs1[1]);
 
   neam=neaparm[*i]+1;
   nebm=nebparm[*i]+1;

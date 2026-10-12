@@ -21,6 +21,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include "CalculiX.h"
+#include "ccx_prof.h"
 
 #define GOOD 0
 #define BAD 1

@@ -20,6 +20,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include "CalculiX.h"
+#include "ccx_prof.h"
 #include "mortar.h"
 #ifdef SPOOLES
 #include "spooles.h"
@@ -3049,10 +3050,13 @@ void nonlingeo(double **cop,ITG *nk,ITG **konp,ITG **ipkonp,char **lakonp,
 	    NNEW(igwk,ITG,20);
 	    for(i=0;i<neq[1];i++){
 	      rwork[i]=1./ad[i];}
+	    double _t_gm0 = ccx_prof_ms();
 	    FORTRAN(predgmres_struct,(&neq[1],b,sol,&nelt,irow,jq,au,
 				      &isym,&itol,&tol,&itmax,&iter,
 				      &err,&ierr,&iunit,sb,sx,rgwk,&lrgw,igwk,
 				      &ligw,rwork,iwork));
+	    double _t_gm1 = ccx_prof_ms();
+	    CCX_PROF_LOG("predgmres_struct: %.2f ms [iter=%d, err=%e]", _t_gm1 - _t_gm0, (int)iter, err);
 	    isiz=neq[1];cpypardou(b,sol,&isiz,&num_cpus);
 	    SFREE(rgwk);SFREE(igwk);SFREE(rwork);SFREE(sol);
 	  }else{
@@ -4014,6 +4018,7 @@ void nonlingeo(double **cop,ITG *nk,ITG **konp,ITG **ipkonp,char **lakonp,
       if(*mortar>1){
 	mortar_prefrd(ne,nslavs,mi,nk,nkon, &stx,cdisp,fn,cfs,cfm);       
       }
+      double _t_frd0 = ccx_prof_ms();
       frd(co,nk,kon,ipkon,lakon,&ne0,v,stn,inum,nmethod,
 	  kode,filab,een,t1act,fn,&ptime,epn,ielmat,matname,enern,xstaten,
 	  nstate_,istep,&iinc,ithermal,qfn,&mode,&noddiam,trab,inotr,
@@ -4022,6 +4027,8 @@ void nonlingeo(double **cop,ITG *nk,ITG **konp,ITG **ipkonp,char **lakonp,
 	  cs,set,nset,istartset,iendset,ialset,eenmax,fnr,fni,emn,
 	  thicke,jobnamec,output,qfx,cdn,mortar,cdnr,cdni,nmat,ielprop,
 	  prop,sti,damn,&errn,accold);
+      double _t_frd1 = ccx_prof_ms();
+      CCX_PROF_LOG("nonlingeo: frd_write=%.2f ms", _t_frd1 - _t_frd0);
       if(*mortar>1){
 	mortar_postfrd(ne,nslavs,mi,nk,nkon,fn,cfs,cfm);      
       }

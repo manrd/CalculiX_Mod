@@ -32,10 +32,14 @@
 !
       if(i.eq.j) then
          if(i0.eq.i1) then
+c$omp atomic
             ad(i)=ad(i)+value
+c$omp atomic
             adb(i)=adb(i)+valuem
          else
+c$omp atomic
             ad(i)=ad(i)+2.d0*value
+c$omp atomic
             adb(i)=adb(i)+2.d0*valuem
          endif
          return
@@ -57,7 +61,9 @@ c      write(*,*) ii,jj,value,valuem
 c         write(*,*) i,j,ii,jj,ipointer,irow(ipointer)
 c         call exit(201)
       else
+c$omp atomic
          au(ipointer)=au(ipointer)+value
+c$omp atomic
          aub(ipointer)=aub(ipointer)+valuem
       endif
 !

@@ -20,7 +20,9 @@
 #include <math.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <omp.h>
 #include "CalculiX.h"
+#include "ccx_prof.h"
 
 static char *lakon1,*sideload1,*matname1,*tieset1,*set1;
 
@@ -179,21 +181,41 @@ void mafillsmmain(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,
 
   /* allocating fields for mass and stiffness matrix */
 
-  NNEW(ad1,double,num_cpus*neq[1]);
-  NNEW(au1,double,(long long)num_cpus*nzs[2]);
+  double _t0 = ccx_prof_ms();
+  ad1 = ad;
+  au1 = au;
+  if(*buckling!=1){
+    #pragma omp parallel for schedule(static) num_threads(num_cpus)
+    for(i=0;i<neq[1];i++) ad[i]=0.;
+    #pragma omp parallel for schedule(static) num_threads(num_cpus)
+    for(i=0;i<nzs[2];i++) au[i]=0.;
+  }
 
   if(*rhsi==1){
     NNEW(fext1,double,num_cpus*neq[1]);
   }
 
   if((mass[1]==1)||((mass[0]==1)||(*buckling==1))){
-    NNEW(adb1,double,num_cpus*neq[1]);
-    NNEW(aub1,double,(long long)num_cpus*nzs[2]);
+    adb1 = adb;
+    aub1 = aub;
+    if(mass[1]==1){
+      #pragma omp parallel for schedule(static) num_threads(num_cpus)
+      for(i=neq[0];i<neq[1];i++) adb[i]=0.;
+      #pragma omp parallel for schedule(static) num_threads(num_cpus)
+      for(i=nzs[0];i<nzs[2];i++) aub[i]=0.;
+    }
+    if((mass[0]==1)||(*buckling==1)){
+      #pragma omp parallel for schedule(static) num_threads(num_cpus)
+      for(i=0;i<neq[0];i++) adb[i]=0.;
+      #pragma omp parallel for schedule(static) num_threads(num_cpus)
+      for(i=0;i<nzs[2];i++) aub[i]=0.;
+    }
   }
 
   if(*nmethod==4){
     NNEW(fnext1,double,num_cpus*mt**nk);
   }
+  double _t_alloc = ccx_prof_ms();
 
   /* allocating memory for nmethod; if the Jacobian determinant
      in any of the elements is nonpositive, nmethod is set to
@@ -249,6 +271,7 @@ void mafillsmmain(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,
     
   /* create threads and wait */
     
+  double _t_mt0 = ccx_prof_ms();
   NNEW(ithread,ITG,num_cpus);
   for(i=0; i<num_cpus; i++)  {
     ithread[i]=i;
@@ -258,126 +281,55 @@ void mafillsmmain(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,
     pthread_join(tid[i], NULL);
     
   SFREE(ithread);SFREE(neapar);SFREE(nebpar);
-
-  /* copying and accumulating the stiffnes and/or mass matrix 
-     for buckling the matrices have to be added*/
-
-  if(*buckling!=1){
-
-    /* no buckling */
-
-    for(i=0;i<neq[1];i++){
-      ad[i]=ad1[i];
-    }
-  }else{
-
-    /* buckling */
-
-    for(i=0;i<neq[1];i++){
-      ad[i]+=ad1[i];
-    }
-  }
-
-  for(i=0;i<neq[1];i++){
-    for(j=1;j<num_cpus;j++){
-      ad[i]+=ad1[i+j*neq[1]];
-    }
-  }
-  SFREE(ad1);
-    
-  if(*buckling!=1){
-
-    /* no buckling */
-
-    for(i=0;i<nzs[2];i++){
-      au[i]=au1[i];
-    }
-  }else{
-
-    /* buckling */
-
-    for(i=0;i<nzs[2];i++){
-      au[i]+=au1[i];
-    }
-  }
-
-  for(i=0;i<nzs[2];i++){
-    for(j=1;j<num_cpus;j++){
-      au[i]+=au1[i+(long long)j*nzs[2]];
-    }
-  }
-  SFREE(au1);
+  double _t_mt1 = ccx_prof_ms();
 
   if(*rhsi==1){
-    for(i=0;i<neq[1];i++){
-      fext[i]=fext1[i];
-    }
-    for(i=0;i<neq[1];i++){
-      for(j=1;j<num_cpus;j++){
-	fext[i]+=fext1[i+j*neq[1]];
+    #pragma omp parallel num_threads(num_cpus)
+    {
+      int tid_omp = omp_get_thread_num();
+      int nthr_omp = omp_get_num_threads();
+      ITG chunk = (neq[1] + nthr_omp - 1) / nthr_omp;
+      ITG istart = tid_omp * chunk;
+      ITG iend = istart + chunk;
+      if (iend > neq[1]) iend = neq[1];
+      if (istart < iend) {
+        for(ITG ii=istart; ii<iend; ii++){
+          fext[ii] = fext1[ii];
+        }
+        for(ITG jj=1; jj<num_cpus; jj++){
+          const double *src = &fext1[(long long)jj * neq[1]];
+          for(ITG ii=istart; ii<iend; ii++){
+            fext[ii] += src[ii];
+          }
+        }
       }
     }
     SFREE(fext1);
   }
-
-  /* the heat capacity matrix and mass matrix must be treated
-     separately, since the mass matrix is no recalculated
-     in each iteration, whereas the capacity matrix is */
-
-  /* heat capacity matrix */
-
-  if(mass[1]==1){
-    for(i=neq[0];i<neq[1];i++){
-      adb[i]=adb1[i];
-    }
-    for(i=neq[0];i<neq[1];i++){
-      for(j=1;j<num_cpus;j++){
-	adb[i]+=adb1[i+j*neq[1]];
-      }
-    }
-
-    for(i=nzs[0];i<nzs[2];i++){
-      aub[i]=aub1[i];
-    }
-    for(i=nzs[0];i<nzs[2];i++){
-      for(j=1;j<num_cpus;j++){
-	aub[i]+=aub1[i+(long long)j*nzs[2]];
-      }
-    }
-  }
-
-  /* mass matrix or buckling matrix */
-
-  if((mass[0]==1)||(*buckling==1)){
-    for(i=0;i<neq[0];i++){
-      adb[i]=adb1[i];
-    }
-    for(i=0;i<neq[0];i++){
-      for(j=1;j<num_cpus;j++){
-	adb[i]+=adb1[i+j*neq[1]];
-      }
-    }
-
-    for(i=0;i<nzs[2];i++){
-      aub[i]=aub1[i];
-    }
-    for(i=0;i<nzs[2];i++){
-      for(j=1;j<num_cpus;j++){
-	aub[i]+=aub1[i+(long long)j*nzs[2]];
-      }
-    }
-  }
-  if((mass[0]==1)||(mass[1]==1)||(*buckling==1)){
-    SFREE(adb1);SFREE(aub1);
-  }
+  double _t_red = ccx_prof_ms();
+  CCX_PROF_LOG("mafillsmmain: total=%.2f ms (calloc=%.2f ms, mt_elem=%.2f ms, serial_reduce=%.2f ms) [nt=%d, neq=%d, nzs=%d]",
+               _t_red - _t0, _t_alloc - _t0, _t_mt1 - _t_mt0, _t_red - _t_mt1, (int)num_cpus, (int)neq[1], (int)nzs[2]);
 
   if(*nmethod==4){
-    for(i=0;i<mt**nk;i++){
-      fnext[i]=fnext1[i];
-    }
-    for(i=0;i<mt**nk;i++){
-      for(j=1;j<num_cpus;j++){
-	fnext[i]+=fnext1[i+j*mt**nk];
+    ITG nfn = mt * *nk;
+    #pragma omp parallel num_threads(num_cpus)
+    {
+      int tid_omp = omp_get_thread_num();
+      int nthr_omp = omp_get_num_threads();
+      ITG chunk = (nfn + nthr_omp - 1) / nthr_omp;
+      ITG istart = tid_omp * chunk;
+      ITG iend = istart + chunk;
+      if (iend > nfn) iend = nfn;
+      if (istart < iend) {
+        for(ITG ii=istart; ii<iend; ii++){
+          fnext[ii] = fnext1[ii];
+        }
+        for(ITG jj=1; jj<num_cpus; jj++){
+          const double *src = &fnext1[(long long)jj * nfn];
+          for(ITG ii=istart; ii<iend; ii++){
+            fnext[ii] += src[ii];
+          }
+        }
       }
     }
     SFREE(fnext1);
@@ -415,18 +367,8 @@ void *mafillsmmt(ITG *i){
   indexaub=0;
   indexfnext=0;
 
-  indexad=*i*neq1[1];
-  indexau=(long long)*i*nzs1[2];
-    
   if(*rhsi1==1){
     indexfext=*i*neq1[1];
-  }
-  if(mass1[1]==1){
-    indexadb=*i*neq1[1];
-    indexaub=(long long)*i*nzs1[2];
-  }else if((mass1[0]==1)||(*buckling1==1)){
-    indexadb=*i*neq1[1];
-    indexaub=(long long)*i*nzs1[2];
   }
   if(nmethod1[0]==4){
     indexfnext=*i*(mi1[1]+1)**nk1;

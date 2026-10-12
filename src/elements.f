@@ -445,7 +445,7 @@ c     Bernhardi end
           endif
           return
         endif
-        read(textpart(1)(1:10),'(i10)',iostat=istat) i
+        call fast_read_i10(textpart(1),i,istat)
         if(istat.gt.0) then
           call inputerror(inpc,ipoinpc,iline,
      &         "*ELEMENT%",ier)
@@ -477,7 +477,7 @@ c     Bernhardi end
         nkon=nkon+nopeexp
 !     
         do j=2,min(n,nope+1)
-          read(textpart(j)(1:10),'(i10)',iostat=istat) kon(indexe+j-1)
+          call fast_read_i10(textpart(j),kon(indexe+j-1),istat)
           if(istat.gt.0) then
             call inputerror(inpc,ipoinpc,iline,
      &           "*ELEMENT%",ier)
@@ -498,8 +498,8 @@ c     Bernhardi end
             endif
             if(nteller+n.gt.nope) n=nope-nteller
             do j=1,n
-              read(textpart(j)(1:10),'(i10)',iostat=istat) 
-     &             kon(indexe+nteller+j)
+              call fast_read_i10(textpart(j),
+     &             kon(indexe+nteller+j),istat)
               if(istat.gt.0) then
                 call inputerror(inpc,ipoinpc,iline,
      &               "*ELEMENT%",ier)

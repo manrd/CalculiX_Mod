@@ -21,75 +21,32 @@
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
-#include <pthread.h>
+#include <omp.h>
 #include "CalculiX.h"
-
-static ITG *nkapar=NULL,*nkbpar=NULL,*mt1,*nactdof1;
-
-static double *f1,*fn1;
 
 void forparll(ITG *mt,ITG *nactdof,double *f,double *fn,
 		    ITG *nk,ITG *num_cpus){
-
-    ITG i,idelta,isum;
-
-    /* variables for multithreading procedure */
-
-    ITG *ithread=NULL;
-
-    pthread_t tid[*num_cpus];
-
-    /* determining the node bounds in each thread */
-    
-    NNEW(nkapar,ITG,*num_cpus);
-    NNEW(nkbpar,ITG,*num_cpus);
-
-    /* dividing the node number range into num_cpus equal numbers of 
-       active entries.  */
-
-    idelta=(ITG)floor(*nk/(double)(*num_cpus));
-    isum=0;
-    for(i=0;i<*num_cpus;i++){
-	nkapar[i]=isum;
-	if(i!=*num_cpus-1){
-	    isum+=idelta;
-	}else{
-	    isum=*nk;
-	}
-	nkbpar[i]=isum;
+    ITG n = *nk;
+    ITG m = *mt;
+    if(n<=0) return;
+    if(*num_cpus<=1 || n<16384){
+        for(ITG k=0;k<n;++k){
+            for(ITG j=0;j<m;++j){
+                ITG idof = nactdof[m*k+j];
+                if(idof>0) f[idof-1]=fn[m*k+j];
+            }
+        }
+        return;
     }
-
-    /* create threads and wait */
-    
-    mt1=mt;nactdof1=nactdof;f1=f;fn1=fn;
-    
-    NNEW(ithread,ITG,*num_cpus);
-
-    for(i=0; i<*num_cpus; i++)  {
-      ithread[i]=i;
-      pthread_create(&tid[i], NULL, (void *)forparllmt, (void *)&ithread[i]);
+    #pragma omp parallel for schedule(static) num_threads(*num_cpus)
+    for(ITG k=0;k<n;++k){
+        for(ITG j=0;j<m;++j){
+            ITG idof = nactdof[m*k+j];
+            if(idof>0) f[idof-1]=fn[m*k+j];
+        }
     }
-    for(i=0; i<*num_cpus; i++)  pthread_join(tid[i], NULL);
-
-    SFREE(ithread);SFREE(nkapar);SFREE(nkbpar);
-
 }
 
-/* subroutine for multithreading of forparll */
-
 void *forparllmt(ITG *i){
-
-    ITG nka,nkb,k,j;
-
-    nka=nkapar[*i];
-    nkb=nkbpar[*i];
-
-    for(k=nka;k<nkb;++k){
-	for(j=0;j<*mt1;++j){
-	    if(nactdof1[*mt1*k+j]>0){
-		f1[nactdof1[*mt1*k+j]-1]=fn1[*mt1*k+j];}
-	}
-    }
-
     return NULL;
 }

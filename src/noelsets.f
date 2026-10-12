@@ -206,8 +206,8 @@ ccc   to remove end
      &'
           endif
           do i=1,3
-            read(textpart(i)(1:10),'(i10)',iostat=istat) 
-     &           ialset(nalset+i)
+            call fast_read_i10(textpart(i),
+     &           ialset(nalset+i),istat)
             if(istat.gt.0) then
               call inputerror(inpc,ipoinpc,iline,
      &             "*NSET or *ELSET%",ier)
@@ -270,8 +270,8 @@ ccc   to remove end
           iendset(iset)=nalset
         else
           do i=1,n
-            read(textpart(i)(1:10),'(i10)',iostat=istat) 
-     &           ialset(nalset+1)
+            call fast_read_i10(textpart(i),
+     &           ialset(nalset+1),istat)
             if(istat.gt.0) then
 !     
 !     set name

@@ -32,45 +32,8 @@
 !
       parameter(nentries=19)
 !
-!     reading a new line
-!
-      if(iline.eq.inp(2,inl)) then
-         if(inp(3,inl).eq.0) then
-            do
-               ipol=ipol+1
-               if(ipol.gt.nentries) then
-                  istat=-1
-                  return
-               elseif(ipoinp(1,ipol).ne.0) then
-                  exit
-               endif
-            enddo
-            inl=ipoinp(1,ipol)
-            iline=inp(1,inl)
-         else
-            inl=inp(3,inl)
-            iline=inp(1,inl)
-         endif
-      else
-         iline=iline+1
-      endif
-      j=0
-      do i=ipoinpc(iline-1)+1,ipoinpc(iline)
-         j=j+1
-         text(j:j)=inpc(i)
-      enddo
-      text(j+1:j+1)=' '
-!
-      istat=0
-      key=0
-!
-!     only free format is supported
-!
-      if((text(1:1).eq.'*').and.(text(2:2).ne.'*')) then
-         key=1
-      endif
-!
-      call splitline(text,textpart,n)
+      call fastgetnewline(inpc,textpart,istat,n,key,iline,
+     &  ipol,inl,ipoinp,inp,ipoinpc)
 !
       return
       end

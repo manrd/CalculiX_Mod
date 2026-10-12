@@ -1,0 +1,33 @@
+LIBROOT = ../.mamba/e/Library
+CFLAGS = -O2 -march=native -fopenmp -std=gnu99 -Wno-implicit-function-declaration -Wno-implicit-int -Wno-int-conversion -Wno-incompatible-pointer-types -I$(LIBROOT)/include -I$(LIBROOT)/include/spooles -DARCH="Linux" -DSPOOLES -DUSE_MT=1 -DPARDISO -DARPACK -DMATRIXSTORAGE -DNETWORKOUT
+FFLAGS = -O2 -march=native -fopenmp -std=legacy -fallow-argument-mismatch -cpp
+
+CC=gcc
+FC=gfortran
+
+.c.o :
+	$(CC) $(CFLAGS) -c $< -o $@
+.f.o :
+	$(FC) $(FFLAGS) -c $< -o $@
+
+include Makefile.inc
+
+SCCXMAIN = CalculiX.c
+
+OCCXF = $(SCCXF:.f=.o)
+OCCXC = $(SCCXC:.c=.o)
+OCCXMAIN = $(SCCXMAIN:.c=.o)
+
+LIBS = \
+       $(LIBROOT)/lib/spoolesMT.a \
+       $(LIBROOT)/lib/spooles.a \
+       $(LIBROOT)/mingw-w64/lib/libarpack.dll.a \
+       $(LIBROOT)/lib/mkl_rt.lib \
+       -lpthread -lm
+
+ccx_mod.exe: $(OCCXMAIN) CalculiX_MT.a
+	$(FC) -fopenmp -O2 -o $@ $(OCCXMAIN) CalculiX_MT.a $(LIBS)
+
+CalculiX_MT.a: $(OCCXF) $(OCCXC)
+	$(file >objs.lst,$(OCCXF) $(OCCXC))
+	gcc-ar rcs $@ @objs.lst
