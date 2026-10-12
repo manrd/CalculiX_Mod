@@ -128,7 +128,7 @@ ccc   to remove end
         call getnewline(inpc,textpart,istat,n,key,iline,ipol,inl,
      &       ipoinp,inp,ipoinpc)
         if((istat.lt.0).or.(key.eq.1)) return
-        read(textpart(1)(1:10),'(i10)',iostat=istat) i
+        call fast_read_i10(textpart(1),i,istat)
         if(istat.gt.0) then
           call inputerror(inpc,ipoinpc,iline,
      &         "*NODE%",ier)
@@ -137,7 +137,7 @@ ccc   to remove end
         if(n.eq.1) then
           co(1,i)=0.d0
         else
-          read(textpart(2)(1:20),'(f20.0)',iostat=istat) co(1,i)
+          call fast_read_f20(textpart(2),co(1,i),istat)
           if(istat.gt.0) then
             call inputerror(inpc,ipoinpc,iline,
      &           "*NODE%",ier)
@@ -147,7 +147,7 @@ ccc   to remove end
         if(n.le.2) then
           co(2,i)=0.d0
         else
-          read(textpart(3)(1:20),'(f20.0)',iostat=istat) co(2,i)
+          call fast_read_f20(textpart(3),co(2,i),istat)
           if(istat.gt.0) then
             call inputerror(inpc,ipoinpc,iline,
      &           "*NODE%",ier)
@@ -157,7 +157,7 @@ ccc   to remove end
         if(n.le.3) then
           co(3,i)=0.d0
         else
-          read(textpart(4)(1:20),'(f20.0)',iostat=istat) co(3,i)
+          call fast_read_f20(textpart(4),co(3,i),istat)
           if(istat.gt.0) then
             call inputerror(inpc,ipoinpc,iline,
      &           "*NODE%",ier)

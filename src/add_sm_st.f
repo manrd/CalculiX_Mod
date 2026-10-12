@@ -29,8 +29,10 @@
 !
       if(i.eq.j) then
          if(i0.eq.i1) then
+c$omp atomic
             ad(i)=ad(i)+value
          else
+c$omp atomic
             ad(i)=ad(i)+2.d0*value
          endif
          return
@@ -50,6 +52,7 @@
          write(*,*) '*ERROR in add_sm_st: coefficient should be 0'
          call exit(201)
       else
+c$omp atomic
          au(ipointer)=au(ipointer)+value
       endif
 !

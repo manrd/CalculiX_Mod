@@ -28,8 +28,10 @@
 !
       if(i.eq.j) then
          if(i0.eq.i1) then
+c$omp atomic
             ad(i)=ad(i)+value
          else
+c$omp atomic
             ad(i)=ad(i)+2.d0*value
          endif
          return
@@ -52,6 +54,7 @@
          call exit(201)
       else
          ipointer=ipointer+ioffset
+c$omp atomic
          au(ipointer)=au(ipointer)+value
       endif
 !

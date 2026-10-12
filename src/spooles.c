@@ -39,6 +39,7 @@
 #include <unistd.h>
 #include "CalculiX.h"
 #include "spooles.h"
+#include "ccx_prof.h"
 
 #if USE_MT
 int num_cpus = -1;
@@ -463,6 +464,7 @@ void spooles_factor(double *ad, double *au,  double *adb, double *aub,
 	int size = *neq;
 	int symmetryflagi4=*symmetryflag;
 	InpMtx *mtxA;
+	double _t0 = ccx_prof_ms();
 
 	if(symmetryflagi4==0){
 	    printf(" Factoring the system of equations using the symmetric spooles solver\n");
@@ -704,6 +706,7 @@ void spooles_factor(double *ad, double *au,  double *adb, double *aub,
 	    
 	}
 	printf(" Using up to %d cpu(s) for spooles.\n\n", num_cpus);
+	double _t_inpmtx = ccx_prof_ms();
 	if (num_cpus > 1) {
 	    /* do not use the multithreaded solver unless
 	     * we have multiple threads - avoid the
@@ -713,6 +716,9 @@ void spooles_factor(double *ad, double *au,  double *adb, double *aub,
 	} else {
 		factor(&pfi, mtxA, size, msgFile,&symmetryflagi4);
 	}
+	double _t_fac = ccx_prof_ms();
+	CCX_PROF_LOG("spooles_factor: inpmtx_build=%.2f ms, factor=%.2f ms [nt=%d, neq=%d]",
+	             _t_inpmtx - _t0, _t_fac - _t_inpmtx, (int)num_cpus, (int)size);
 #else
 	printf(" Using 1 cpu for spooles.\n\n");
 	factor(&pfi, mtxA, size, msgFile,&symmetryflagi4);
@@ -734,6 +740,7 @@ void spooles_solve(double *b, ITG *neq)
 	 */
 	int size = *neq;
 	DenseMtx *mtxB,*mtxX;
+	double _t_s0 = ccx_prof_ms();
 
 //	printf(" Solving the system of equations using the symmetric spooles solver\n");
 
@@ -777,6 +784,8 @@ void spooles_solve(double *b, ITG *neq)
 	}
 	/* cleanup */
 	DenseMtx_free(mtxX);
+	double _t_s1 = ccx_prof_ms();
+	CCX_PROF_LOG("spooles_solve: %.2f ms", _t_s1 - _t_s0);
 }
 
 void spooles_cleanup()

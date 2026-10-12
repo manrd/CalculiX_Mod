@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "CalculiX.h"
+#include "ccx_prof.h"
 #ifdef SPOOLES
 #include "spooles.h"
 #endif
@@ -853,6 +854,7 @@ void linstatic(double *co,ITG *nk,ITG **konp,ITG **ipkonp,char **lakonp,
 	NNEW(ipneigh,ITG,*nk);
       }
       ptime=*ttime+time;
+      double _t_frd0 = ccx_prof_ms();
       frd(co,nk,kon,ipkon,lakon,ne,v,stn,inum,nmethod,
 	  kode,filab,een,t1act,fn,&ptime,epn,ielmat,matname,enern,xstaten,
 	  nstate_,istep,&iinc,ithermal,qfn,&mode,&noddiam,trab,inotr,
@@ -861,6 +863,8 @@ void linstatic(double *co,ITG *nk,ITG **konp,ITG **ipkonp,char **lakonp,
 	  cs,set,nset,istartset,iendset,ialset,eenmax,fnr,fni,emn,
 	  thicke,jobnamec,output,qfx,cdn,mortar,cdnr,cdni,nmat,ielprop,
 	  prop,sti,damn,&errn,accold);
+      double _t_frd1 = ccx_prof_ms();
+      CCX_PROF_LOG("linstatic: frd_write=%.2f ms", _t_frd1 - _t_frd0);
       if(strcmp1(&filab[1044],"ZZS")==0){SFREE(ipneigh);SFREE(neigh);}
     }
 

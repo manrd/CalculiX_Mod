@@ -26,23 +26,7 @@ void insert(ITG *ipointer, ITG **mast1p, ITG **nextp, ITG *i1,
 
   /* routine for the lower triangular matrix, excluding the diagonal */
 
-  /*   inserts a new nonzero matrix position into the data structure 
-       in FORTRAN notation: 
-       - ipointer(i) points to a position in field mast1 containing
-         the row number of a nonzero position in column i; 
-         next(ipointer(i)) points a position in field mast1 containing
-         the row number of another nonzero position in column i, and
-         so on until no nonzero positions in column i are left; for 
-         the position j in field mast1 containing the momentarily last
-         nonzero number in column i we have next(j)=0 
-
-       notice that in C the positions start at 0 and not at 1 as in 
-       FORTRAN; the present routine is written in FORTRAN convention */
-
-    ITG idof1,idof2,istart,*mast1=NULL,*next=NULL;
-
-  mast1=*mast1p;
-  next=*nextp;
+  ITG idof1,idof2,*mast1=NULL,*next=NULL;
 
   if(*i1==*i2) return;
   if(*i1<*i2){
@@ -54,17 +38,22 @@ void insert(ITG *ipointer, ITG **mast1p, ITG **nextp, ITG *i1,
     idof2=*i2-1;
   }
 
+  mast1=*mast1p;
+  next=*nextp;
+
+  ITG idx = ipointer[idof2];
+  if(idx!=0 && mast1[idx-1]==idof1) return;
+
   if(*ifree>=*nzs_){
-      *nzs_=(ITG)(1.1**nzs_);
+      *nzs_=(ITG)(1.5**nzs_+256);
       RENEW(mast1,ITG,*nzs_);
       RENEW(next,ITG,*nzs_);
+      *mast1p=mast1;
+      *nextp=next;
   }
   mast1[*ifree]=idof1;
   next[*ifree]=ipointer[idof2];
   ipointer[idof2]=++*ifree;
-
-  *mast1p=mast1;
-  *nextp=next;
   
   return;
 

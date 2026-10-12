@@ -1170,6 +1170,8 @@ utempread.c \
 worparll.c \
 writeheading.c \
 writenewmesh.c \
-writeoldmesh.c
+writeoldmesh.c \
+fastparse.c \
+gpu_solver.c
 
 SCCXCXX = umat_dl.cpp

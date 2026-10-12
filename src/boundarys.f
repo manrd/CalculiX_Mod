@@ -331,7 +331,7 @@
      &         ipoinp,inp,ipoinpc)
           if((istat.lt.0).or.(key.eq.1)) return
 !     
-          read(textpart(2)(1:10),'(i10)',iostat=istat) ibounstart
+          call fast_read_i10(textpart(2),ibounstart,istat)
           if(istat.gt.0) then
             call inputerror(inpc,ipoinpc,iline,
      &           "*BOUNDARY%",ier)
@@ -341,7 +341,7 @@
           if(textpart(3)(1:1).eq.' ') then
             ibounend=ibounstart
           else
-            read(textpart(3)(1:10),'(i10)',iostat=istat) ibounend
+            call fast_read_i10(textpart(3),ibounend,istat)
             if(istat.gt.0) then
               call inputerror(inpc,ipoinpc,iline,
      &             "*BOUNDARY%",ier)
@@ -352,7 +352,7 @@
           if(textpart(4)(1:1).eq.' ') then
             bounval=0.d0
           else
-            read(textpart(4)(1:20),'(f20.0)',iostat=istat) bounval
+            call fast_read_f20(textpart(4),bounval,istat)
             if(istat.gt.0) then
               call inputerror(inpc,ipoinpc,iline,
      &             "*BOUNDARY%",ier)
@@ -378,7 +378,7 @@
             endif
           endif
 !     
-          read(textpart(1)(1:10),'(i10)',iostat=istat) l
+          call fast_read_i10(textpart(1),l,istat)
           if(istat.eq.0) then
             if((l.gt.nk).or.(l.le.0)) then
               write(*,*) '*ERROR reading *BOUNDARY:'

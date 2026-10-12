@@ -19,9 +19,15 @@
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 #include <pthread.h>
+#include <omp.h>
 #include "CalculiX.h"
+#include "ccx_prof.h"
 #include "mortar.h"
+
+static double *fn1_pool = NULL;
+static size_t fn1_pool_cap = 0;
 
 static char *lakon1,*matname1,*sideload1;
 
@@ -167,6 +173,7 @@ void results(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne,
   /* 1. nodewise storage of the primary variables
      2. determination which derived variables have to be calculated */
     
+  double _t0 = ccx_prof_ms();
   resultsini(nk,v,ithermal,filab,iperturb,f,fn,
 	     nactdof,iout,qa,vold,b,nodeboun,ndirboun,
 	     xboun,nboun,ipompc,nodempc,coefmpc,labmpc,nmpc,nmethod,cam,neq,
@@ -174,6 +181,7 @@ void results(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne,
 	     &intpointvarm,&calcul_fn,&calcul_f,&calcul_qa,&calcul_cauchy,
 	     &ikin,&intpointvart,typeboun,&num_cpus,mortar,nener,iponoeln,
 	     network);
+  double _t_ini = ccx_prof_ms();
 
   /* next statement allows for storing the displacements in each
      iteration: for debugging purposes */
@@ -194,10 +202,17 @@ void results(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne,
     NNEW(nebpar,ITG,num_cpus);
     elementcpuload(neapar,nebpar,ne,ipkon,&num_cpus);
 
-    NNEW(fn1,double,num_cpus*mt**nk);
+    double _t_alloc0 = ccx_prof_ms();
+    size_t req_fn1 = (size_t)num_cpus * (size_t)mt * (size_t)(*nk);
+    if (req_fn1 > fn1_pool_cap) {
+      RENEW(fn1_pool, double, req_fn1);
+      fn1_pool_cap = req_fn1;
+    }
+    fn1 = fn1_pool;
     NNEW(qa1,double,num_cpus*4);
     NNEW(nal,ITG,num_cpus);
     NNEW(energysms1,double,num_cpus);
+    double _t_alloc1 = ccx_prof_ms();
 
     co1=co;kon1=kon;ipkon1=ipkon;lakon1=lakon;ne1=ne;v1=v;
     stx1=stx;elcon1=elcon;nelcon1=nelcon;rhcon1=rhcon;
@@ -229,6 +244,7 @@ void results(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne,
 	
     /* create threads and wait */
 	
+    double _t_mt0 = ccx_prof_ms();
     NNEW(ithread,ITG,num_cpus);
     for(i=0; i<num_cpus; i++)  {
       ithread[i]=i;
@@ -236,16 +252,36 @@ void results(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne,
     }
     for(i=0; i<num_cpus; i++)
       pthread_join(tid[i], NULL);
+    double _t_mt1 = ccx_prof_ms();
 	
-    for(i=0;i<mt**nk;i++){
-      fn[i]=fn1[i];
-    }
-    for(i=0;i<mt**nk;i++){
-      for(j=1;j<num_cpus;j++){
-	fn[i]+=fn1[i+j*mt**nk];
+    ITG nfn_tot = mt * *nk;
+    if (calcul_fn == 1) {
+      #pragma omp parallel num_threads(num_cpus)
+      {
+        int tid_omp = omp_get_thread_num();
+        int nthr_omp = omp_get_num_threads();
+        ITG chunk = (nfn_tot + nthr_omp - 1) / nthr_omp;
+        ITG istart = tid_omp * chunk;
+        ITG iend = istart + chunk;
+        if (iend > nfn_tot) iend = nfn_tot;
+        if (istart < iend) {
+          for(ITG ii=istart; ii<iend; ii++){
+            fn[ii] = fn1[ii];
+          }
+          for(ITG jj=1; jj<num_cpus; jj++){
+            const double *src = &fn1[(size_t)jj * (size_t)nfn_tot];
+            for(ITG ii=istart; ii<iend; ii++){
+              fn[ii] += src[ii];
+            }
+          }
+        }
       }
     }
-    SFREE(fn1);SFREE(ithread);SFREE(neapar);SFREE(nebpar);
+    fn1 = NULL;
+    SFREE(ithread);SFREE(neapar);SFREE(nebpar);
+    double _t_red = ccx_prof_ms();
+    CCX_PROF_LOG("results: ini=%.2f ms, calloc_fn1=%.2f ms, mt_stress=%.2f ms, serial_fn_reduce=%.2f ms [nt=%d, iout=%d]",
+                 _t_ini - _t0, _t_alloc1 - _t_alloc0, _t_mt1 - _t_mt0, _t_red - _t_mt1, (int)num_cpus, (int)*iout);
 	
     /* determine the internal force */
 
@@ -319,7 +355,12 @@ void results(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne,
     NNEW(nebpar,ITG,num_cpus);
     elementcpuload(neapar,nebpar,ne,ipkon,&num_cpus);
 
-    NNEW(fn1,double,num_cpus*mt**nk);
+    size_t req_fn1 = (size_t)num_cpus * (size_t)mt * (size_t)(*nk);
+    if (req_fn1 > fn1_pool_cap) {
+      RENEW(fn1_pool, double, req_fn1);
+      fn1_pool_cap = req_fn1;
+    }
+    fn1 = fn1_pool;
     NNEW(qa1,double,num_cpus*4);
     NNEW(nal,ITG,num_cpus);
 
@@ -365,7 +406,8 @@ void results(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne,
 	fn[mt*i]+=fn1[mt*i+j*mt**nk];
       }
     }
-    SFREE(fn1);SFREE(ithread);SFREE(neapar);SFREE(nebpar);
+    fn1 = NULL;
+    SFREE(ithread);SFREE(neapar);SFREE(nebpar);
 	
     /* determine the internal concentrated heat flux */
 
@@ -486,6 +528,10 @@ void *resultsmechmt(ITG *i){
   indexqa=*i*4;
   indexnal=*i;
 
+  if (calcul_fn1 == 1) {
+    memset(&fn1[indexfn], 0, (size_t)mt1 * (size_t)(*nk1) * sizeof(double));
+  }
+
   nea=neapar[*i]+1;
   neb=nebpar[*i]+1;
 
@@ -518,6 +564,10 @@ void *resultsthermmt(ITG *i){
   indexfn=*i*mt1**nk1;
   indexqa=*i*4;
   indexnal=*i;
+
+  if (calcul_fn1 == 1) {
+    memset(&fn1[indexfn], 0, (size_t)mt1 * (size_t)(*nk1) * sizeof(double));
+  }
 
   nea=neapar[*i]+1;
   neb=nebpar[*i]+1;
