@@ -395,10 +395,28 @@ void pardiso_factor(double *ad, double *au, double *adb, double *aub,
   double _t_conv1 = ccx_prof_ms();
 
   mkl_domain_set_num_threads(mthread_mkl,MKL_DOMAIN_PARDISO);
+  /* Host-side CSR conversion / reductions use OpenMP on the same cores;
+     keep MKL BLAS on the same budget so factor/solve workers and any
+     BLAS calls share one pool instead of oversubscribing it. */
+  mkl_domain_set_num_threads(mthread_mkl,MKL_DOMAIN_BLAS);
   void *val_ptr = fp32 ? (void*)aupardiso_f32 : (void*)aupardiso;
 
   double _t_p11 = _t_conv1;
   if (!reuse_symb) {
+    /* Symbolic ordering scales poorly past a few threads (measured:
+       203ms@1T, 171ms@6T, 167ms@12T) and its threads contend with the
+       numeric phase budget. Cap it via CCX_NPROC_SYMBOLIC (default:
+       min(mthread_mkl,6)); numeric factor/solve below keep mthread_mkl. */
+    ITG symb_threads = mthread_mkl > 6 ? 6 : mthread_mkl;
+    {
+      const char *env_sym = getenv("CCX_NPROC_SYMBOLIC");
+      if(env_sym){
+        ITG sv = (ITG)atoi(env_sym);
+        if(sv >= 1 && sv <= mthread_mkl) symb_threads = sv;
+      }
+    }
+    mkl_domain_set_num_threads(symb_threads,MKL_DOMAIN_PARDISO);
+    mkl_domain_set_num_threads(symb_threads,MKL_DOMAIN_BLAS);
     ITG phase11 = 11;
     FORTRAN(pardiso,(pt,&maxfct,&mnum,&mtype,&phase11,neq,val_ptr,
 		     pointers,icolpardiso,perm,&nrhs,iparm,&msglvl,
@@ -418,6 +436,10 @@ void pardiso_factor(double *ad, double *au, double *adb, double *aub,
       pardiso_has_symb = 1;
     }
   }
+
+  /* restore the full numeric-phase thread budget after symbolic */
+  mkl_domain_set_num_threads(mthread_mkl,MKL_DOMAIN_PARDISO);
+  mkl_domain_set_num_threads(mthread_mkl,MKL_DOMAIN_BLAS);
 
   ITG phase22 = 22;
   FORTRAN(pardiso,(pt,&maxfct,&mnum,&mtype,&phase22,neq,val_ptr,

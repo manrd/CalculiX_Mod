@@ -1930,6 +1930,10 @@ int main(int argc,char *argv[])
 
   FORTRAN(closefile,());
 
+  /* flush+close the persistent frd handle before appending " 9999"
+     through a fresh handle, so buffered blocks keep file order */
+  frd_close();
+
   strcpy2(fneig,jobnamec,132);
   strcat(fneig,".frd");
   if((f1=fopen(fneig,"ab"))==NULL){

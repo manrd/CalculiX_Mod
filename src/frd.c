@@ -24,6 +24,11 @@
 #define min(a,b) ((a) <= (b) ? (a) : (b))
 #define max(a,b) ((a) >= (b) ? (a) : (b))
 
+/* persistent output handle shared by frd() and frd_close() */
+static FILE *f1_keep=NULL;
+static char f1_job[132]="";
+static int f1_jobset=0;
+
 void frd(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne0,
 	 double *v,double *stn,ITG *inum,ITG *nmethod,ITG *kode,
 	 char *filab,double *een,double *t1,double *fn,double *time,
@@ -52,6 +57,11 @@ void frd(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne0,
      iselect=0  means both of the above */
   
   FILE *f1;
+
+  /* persistent output handle: kept open across frd() calls within a job
+     (open-append once, fflush per call, closed by frd_close() at end of
+     run). Byte-identical output vs open/close per call; crash-consistency
+     unchanged since every exit path flushes (see frd_close). */
   
   char c[2]="C",m1[4]=" -1",m2[4]=" -2",m3[4]=" -3",
     p0[6]="    0",p1[6]="    1",p2[6]="    2",p3[6]="    3",p4[6]="    4",
@@ -94,10 +104,20 @@ void frd(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne0,
   strcpy2(fneig,jobnamec,132);
   strcat(fneig,".frd");
 
-  if((f1=fopen(fneig,"ab"))==NULL){
-    printf(" *ERROR in frd: cannot open frd file for writing...");
-    exit(0);
+  /* fneig is NUL-terminated (strcat); compare full filename instead of
+     the space-padded Fortran jobname. */
+  if((f1_keep==NULL)||(!f1_jobset)||(strcmp(f1_job,fneig)!=0)){
+    if(f1_keep!=NULL){ fclose(f1_keep); f1_keep=NULL; }
+    if((f1_keep=fopen(fneig,"ab"))==NULL){
+      printf(" *ERROR in frd: cannot open frd file for writing...");
+      exit(0);
+    }
+    /* Batch the per-node/per-element ASCII fprintf stream through a 1 MB
+       stdio buffer: same bytes on disk (flushed per call below). */
+    setvbuf(f1_keep,NULL,_IOFBF,1<<20);
+    strncpy(f1_job,fneig,131); f1_job[131]='\0'; f1_jobset=1;
   }
+  f1=f1_keep;
 
   /* check whether all results have to be stored (also those
      corresponding to inactive nodes or elements) */
@@ -828,13 +848,13 @@ void frd(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne0,
     }
     if(strcmp1(output,"asc")==0)fprintf(f1,"%3s\n",m3);
 
-    if(*nmethod==0){fclose(f1);return;}
+    if(*nmethod==0){fflush(f1);return;}
   }
 
   /*  for cyclic symmetry frequency calculations only results for
       even numbers (= odd modes, numbering starts at 0) are stored */
 
-  if((*nmethod==2)&&(((*mode/2)*2!=*mode)&&(*noddiam>=0))){fclose(f1);return;}
+  if((*nmethod==2)&&(((*mode/2)*2!=*mode)&&(*noddiam>=0))){fflush(f1);return;}
 
   /* storing the displacements in the nodes */
   
@@ -2275,8 +2295,8 @@ void frd(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne0,
   /*  the remaining lines only apply to frequency calculations
       with cyclic symmetry, complex frequency and steady state calculations */
 
-  if((*nmethod!=2)&&(*nmethod!=13)&&(*nmethod!=5)&&(*nmethod!=6)&&(*nmethod!=7)){fclose(f1);return;}
-  if((*nmethod==5)&&(*mode==-1)){fclose(f1);return;}
+  if((*nmethod!=2)&&(*nmethod!=13)&&(*nmethod!=5)&&(*nmethod!=6)&&(*nmethod!=7)){fflush(f1);return;}
+  if((*nmethod==5)&&(*mode==-1)){fflush(f1);return;}
 
   /* storing the displacements in the nodes (magnitude, phase) */
   
@@ -2420,7 +2440,7 @@ void frd(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne0,
 
   /* the remaining parts are for frequency calculations with cyclic symmetry only */
 
-  if((*nmethod!=2)&&(*nmethod!=13)){fclose(f1);return;}
+  if((*nmethod!=2)&&(*nmethod!=13)){fflush(f1);return;}
 
   /* storing the maximum displacements of the nodes in the base sector
      (components, magnitude) */
@@ -2537,9 +2557,20 @@ void frd(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne0,
 	      nfield,&iselect,m2,f1,output,m3);
 
   }
-  
-  fclose(f1);
-  
+
+  /* handle stays open across calls (see top of frd); flushed here so
+     bytes are on disk exactly as with the old fclose-per-call. */
+  fflush(f1);
+
   return;
-  
+
+}
+
+/* Flush + close the persistent frd handle. Must be called before any
+   code re-opens jobname.frd itself (e.g. the trailing " 9999" write in
+   CalculiX.c / CalculiXstep.c) so buffered result blocks cannot be
+   overtaken on disk. Safe to call when never opened. */
+void frd_close(void){
+  if(f1_keep!=NULL){ fflush(f1_keep); fclose(f1_keep); f1_keep=NULL; }
+  f1_jobset=0;
 }

@@ -169,7 +169,7 @@ void results_se(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne,
 
 	NNEW(neapar,ITG,num_cpus);
 	NNEW(nebpar,ITG,num_cpus);
-	elementcpuload(neapar,nebpar,ne,ipkon,&num_cpus);
+	elementcpuload(neapar,nebpar,ne,ipkon,lakon,&num_cpus);
 	
 	NNEW(fn01,double,num_cpus*mt**nkon);
 	

@@ -117,7 +117,7 @@ void results(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne,
       
   /* variables for multithreading procedure */
     
-  ITG sys_cpus,*ithread=NULL;
+  ITG sys_cpus;
   char *env,*envloc,*envsys;
     
   num_cpus = 0;
@@ -168,8 +168,6 @@ void results(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne,
 
   if(*ne<num_cpus) num_cpus=*ne;
     
-  pthread_t tid[num_cpus];
-    
   /* 1. nodewise storage of the primary variables
      2. determination which derived variables have to be calculated */
     
@@ -200,7 +198,7 @@ void results(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne,
 
     NNEW(neapar,ITG,num_cpus);
     NNEW(nebpar,ITG,num_cpus);
-    elementcpuload(neapar,nebpar,ne,ipkon,&num_cpus);
+    elementcpuload(neapar,nebpar,ne,ipkon,lakon,&num_cpus);
 
     double _t_alloc0 = ccx_prof_ms();
     size_t req_fn1 = (size_t)num_cpus * (size_t)mt * (size_t)(*nk);
@@ -242,16 +240,15 @@ void results(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne,
       printf(" Using up to %" ITGFORMAT " cpu(s) for the stress calculation.\n\n", num_cpus);
     }
 	
-    /* create threads and wait */
-	
+    /* create threads and wait (OpenMP persistent pool: no per-call
+       pthread_create/join; worker unchanged, one element range per thread) */
+
     double _t_mt0 = ccx_prof_ms();
-    NNEW(ithread,ITG,num_cpus);
-    for(i=0; i<num_cpus; i++)  {
-      ithread[i]=i;
-      pthread_create(&tid[i], NULL, (void *)resultsmechmt, (void *)&ithread[i]);
+    #pragma omp parallel num_threads(num_cpus)
+    {
+      ITG tid_omp = (ITG)omp_get_thread_num();
+      resultsmechmt(&tid_omp);
     }
-    for(i=0; i<num_cpus; i++)
-      pthread_join(tid[i], NULL);
     double _t_mt1 = ccx_prof_ms();
 	
     ITG nfn_tot = mt * *nk;
@@ -278,7 +275,7 @@ void results(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne,
       }
     }
     fn1 = NULL;
-    SFREE(ithread);SFREE(neapar);SFREE(nebpar);
+    SFREE(neapar);SFREE(nebpar);
     double _t_red = ccx_prof_ms();
     CCX_PROF_LOG("results: ini=%.2f ms, calloc_fn1=%.2f ms, mt_stress=%.2f ms, serial_fn_reduce=%.2f ms [nt=%d, iout=%d]",
                  _t_ini - _t0, _t_alloc1 - _t_alloc0, _t_mt1 - _t_mt0, _t_red - _t_mt1, (int)num_cpus, (int)*iout);
@@ -353,7 +350,7 @@ void results(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne,
 
     NNEW(neapar,ITG,num_cpus);
     NNEW(nebpar,ITG,num_cpus);
-    elementcpuload(neapar,nebpar,ne,ipkon,&num_cpus);
+    elementcpuload(neapar,nebpar,ne,ipkon,lakon,&num_cpus);
 
     size_t req_fn1 = (size_t)num_cpus * (size_t)mt * (size_t)(*nk);
     if (req_fn1 > fn1_pool_cap) {
@@ -388,26 +385,37 @@ void results(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne,
 	
     printf(" Using up to %" ITGFORMAT " cpu(s) for the heat flux calculation.\n\n", num_cpus);
 	
-    /* create threads and wait */
-	
-    NNEW(ithread,ITG,num_cpus);
-    for(i=0; i<num_cpus; i++)  {
-      ithread[i]=i;
-      pthread_create(&tid[i], NULL, (void *)resultsthermmt, (void *)&ithread[i]);
+    /* create threads and wait (OpenMP persistent pool; worker unchanged) */
+
+    #pragma omp parallel num_threads(num_cpus)
+    {
+      ITG tid_omp = (ITG)omp_get_thread_num();
+      resultsthermmt(&tid_omp);
     }
-    for(i=0; i<num_cpus; i++)
-      pthread_join(tid[i], NULL);
-	
-    for(i=0;i<*nk;i++){
-      fn[mt*i]=fn1[mt*i];
-    }
-    for(i=0;i<*nk;i++){
-      for(j=1;j<num_cpus;j++){
-	fn[mt*i]+=fn1[mt*i+j*mt**nk];
+
+    /* fn reduction, parallelized like the mechanical path (was a serial
+       double loop over nk x num_cpus) */
+    {
+      ITG nfn_th = *nk;
+      #pragma omp parallel num_threads(num_cpus)
+      {
+        int tid_omp = omp_get_thread_num();
+        int nthr_omp = omp_get_num_threads();
+        ITG chunk = (nfn_th + nthr_omp - 1) / nthr_omp;
+        ITG istart = tid_omp * chunk;
+        ITG iend = istart + chunk;
+        if (iend > nfn_th) iend = nfn_th;
+        for(ITG ii=istart; ii<iend; ii++){
+          double s = fn1[mt*ii];
+          for(ITG jj=1; jj<num_cpus; jj++){
+            s += fn1[mt*ii+jj*mt**nk];
+          }
+          fn[mt*ii] = s;
+        }
       }
     }
     fn1 = NULL;
-    SFREE(ithread);SFREE(neapar);SFREE(nebpar);
+    SFREE(neapar);SFREE(nebpar);
 	
     /* determine the internal concentrated heat flux */
 
@@ -450,7 +458,7 @@ void results(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne,
 
     NNEW(neapar,ITG,num_cpus);
     NNEW(nebpar,ITG,num_cpus);
-    elementcpuload(neapar,nebpar,ne,ipkon,&num_cpus);
+    elementcpuload(neapar,nebpar,ne,ipkon,lakon,&num_cpus);
 
     NNEW(energy1,double,num_cpus*4);
 
@@ -464,15 +472,13 @@ void results(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne,
       printf(" Using up to %" ITGFORMAT " cpu(s) for the energy calculation.\n\n", num_cpus);
     }
 	
-    /* create threads and wait */
-	
-    NNEW(ithread,ITG,num_cpus);
-    for(i=0; i<num_cpus; i++)  {
-      ithread[i]=i;
-      pthread_create(&tid[i], NULL, (void *)calcenergymt, (void *)&ithread[i]);
+    /* create threads and wait (OpenMP persistent pool; worker unchanged) */
+
+    #pragma omp parallel num_threads(num_cpus)
+    {
+      ITG tid_omp = (ITG)omp_get_thread_num();
+      calcenergymt(&tid_omp);
     }
-    for(i=0; i<num_cpus; i++)
-      pthread_join(tid[i], NULL);
 
     /* the contact spring friction energy is calculated incrementally
        (i.e. set to zero in enerini(2,1,ne0+*) at the start of the
@@ -489,7 +495,7 @@ void results(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne,
 	energy[i]+=energy1[i+j*4];
       }
     }
-    SFREE(energy1);SFREE(ithread);SFREE(neapar);SFREE(nebpar);
+    SFREE(energy1);SFREE(neapar);SFREE(nebpar);
 	
   }
 

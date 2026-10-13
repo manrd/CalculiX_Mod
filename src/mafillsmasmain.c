@@ -151,7 +151,7 @@ void mafillsmasmain(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne,
 
     /* contact elements */
     
-    elementcpuload(neaparm,nebparm,&nec,&ipkon[*ne0],&num_cpus);
+    elementcpuload(neaparm,nebparm,&nec,&ipkon[*ne0],&lakon[8*(*ne0)],&num_cpus);
 
     for(i=0;i<num_cpus;i++){
       neaparm[i]+=(*ne0);
@@ -173,7 +173,7 @@ void mafillsmasmain(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne,
   NNEW(neapart,ITG,num_cpus);
   NNEW(nebpart,ITG,num_cpus);
     
-  elementcpuload(neapart,nebpart,ne,ipkon,&num_cpus);
+  elementcpuload(neapart,nebpart,ne,ipkon,lakon,&num_cpus);
 
   /* allocating fields for mass and stiffness matrix */
 

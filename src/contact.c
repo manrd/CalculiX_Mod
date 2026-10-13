@@ -19,6 +19,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include "CalculiX.h"
+#include "ccx_prof.h"
 
 void contact(ITG *ncont, ITG *ntie, char *tieset,ITG *nset,char *set,
 	     ITG *istartset, ITG *iendset, ITG *ialset,ITG *itietri,
@@ -51,10 +52,13 @@ void contact(ITG *ncont, ITG *ntie, char *tieset,ITG *nset,char *set,
 
 	DMEMSET(xmastnor,0,3*nmastnode[*ntie],0.);
     
+	double _t_uc0=ccx_prof_ms();
 	FORTRAN(updatecontpen,(koncont,ncont,co,vold,
 			cg,straight,mi,imastnode,nmastnode,xmastnor,
 			ntie,tieset,nset,set,istartset,
 			iendset,ialset,ipkon,lakon,kon,cs,mcs,ics));
+	CCX_PROF_LOG("contact: updatecontpen=%.2f ms [mortar=%d]",
+		     ccx_prof_ms()-_t_uc0,(int)*mortar);
     }
     
     /* determining the size of the auxiliary fields */
@@ -75,7 +79,8 @@ void contact(ITG *ncont, ITG *ntie, char *tieset,ITG *nset,char *set,
     NNEW(nz,ITG,ntrimax);
     
     if(*mortar<=0){
-    
+
+	double _t_gc0=ccx_prof_ms();
 	FORTRAN(gencontelem_n2f,(tieset,ntie,itietri,ne,ipkon,kon,lakon,
 	  cg,straight,ifree,koncont,
           co,vold,xo,yo,zo,x,y,z,nx,ny,nz,ielmat,elcon,istep,
@@ -85,15 +90,20 @@ void contact(ITG *ncont, ITG *ntie, char *tieset,ITG *nset,char *set,
           set,nset,istartset,iendset,ialset,tietol,reltime,
 	  filab,nasym,xnoels,icutb,ne0,jobnamef,mortar,auw,jqw,iroww,nzsw,
 	  imastnode,nmastnode));
+	CCX_PROF_LOG("contact: gencontelem_n2f=%.2f ms [ne=%d]",
+		     ccx_prof_ms()-_t_gc0,(int)*ne);
 
     }else if(*mortar==1){
 
+	double _t_gc0=ccx_prof_ms();
 	FORTRAN(gencontelem_f2f,(tieset,ntie,itietri,ne,ipkon,kon,
 	  lakon,cg,straight,ifree,koncont,co,vold,xo,yo,zo,x,y,z,nx,ny,nz,
           ielmat,elcon,istep,iinc,iit,ncmat_,ntmat_,mi,imastop,islavsurf,
 	  itiefac,springarea,tietol,reltime,filab,nasym,pslavsurf,pmastsurf,
 	  clearini,theta,xstateini,xstate,nstate_,ne0,icutb,ialeatoric,
 	  nmethod,jobnamef,alea));
+	CCX_PROF_LOG("contact: gencontelem_f2f=%.2f ms [ne=%d]",
+		     ccx_prof_ms()-_t_gc0,(int)*ne);
 
     }
 
