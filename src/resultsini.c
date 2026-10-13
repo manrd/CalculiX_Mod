@@ -20,6 +20,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <omp.h>
 #include "CalculiX.h"
 
 void resultsini(ITG *nk,double *v,ITG *ithermal,char *filab,ITG *iperturb,
@@ -43,44 +44,80 @@ void resultsini(ITG *nk,double *v,ITG *ithermal,char *filab,ITG *iperturb,
   if((*iout!=2)&&(*iout>-1)){
     if((*nmethod!=4)||(iperturb[0]<=1)){
 
-      /* steady state: mechanical (static) */
+      /* steady state: mechanical (static).
+         v-accumulation is per-node disjoint; cam[0]/cam[3] keep the
+         first strict maximum in scan order (ordered thread merge
+         reproduces the serial result bit-identically). */
 
       if(ithermal[0]!=2){
-	for(i=0;i<*nk;i++){
-	  for(j=1;j<mt;j++){
-	    if(nactdof[mt*i+j]>0){
-	      bnac=b[nactdof[mt*i+j]-1];
-	    }else{
-	      continue;
-	    }
-	    v[mt*i+j]+=bnac;
-	    /* FORTRAN(addshell,(nactdof,&i,b,mi,iperturb,
-	       nmethod,cam,v));*/
-	    if((iperturb[0]!=0)&&(abs(*nmethod)==1)){
-	      if(fabs(bnac)>cam[0]){
-		cam[0]=fabs(bnac);
-		cam[3]=nactdof[mt*i+j]-0.5;
+	ITG _nt=*num_cpus; ITG _t;
+	double _lmax[64]; double _lidx[64]; int _lhit[64];
+	int _track=(iperturb[0]!=0)&&(abs(*nmethod)==1);
+	if(_nt<1) _nt=1;
+	if(_nt>64) _nt=64;
+	#pragma omp parallel num_threads(_nt)
+	{
+	  int _tid=omp_get_thread_num();
+	  int _nth=omp_get_num_threads();
+	  ITG _chunk=(*nk+_nth-1)/_nth;
+	  ITG _s=_tid*_chunk,_e=_s+_chunk;
+	  double _lv=-1.,_li=0.; int _hit=0;
+	  if(_e>*nk) _e=*nk;
+	  for(ITG _i=_s;_i<_e;_i++){
+	    for(ITG _j=1;_j<mt;_j++){
+	      ITG _d=nactdof[mt*_i+_j];
+	      double _b;
+	      if(_d<=0) continue;
+	      _b=b[_d-1];
+	      v[mt*_i+_j]+=_b;
+	      if(_track){
+		double _a=fabs(_b);
+		if(_a>_lv){_lv=_a;_li=_d-0.5;_hit=1;}
 	      }
 	    }
+	  }
+	  _lmax[_tid]=_lv; _lidx[_tid]=_li; _lhit[_tid]=_hit;
+	}
+	if(_track){
+	  for(_t=0;_t<_nt;_t++){
+	    if(_lhit[_t]&&_lmax[_t]>cam[0]){cam[0]=_lmax[_t];cam[3]=_lidx[_t];}
 	  }
 	}
       }
 
-      /* steady state: thermal */
+      /* steady state: thermal (same disjointness + ordered-merge) */
 
       if(ithermal[0]>1){
-	for(i=0;i<*nk;i++){
-	  if(nactdof[mt*i]>0){
-	    bnac=b[nactdof[mt*i]-1];
-	  }else{
-	    continue;
-	  }
-	  v[mt*i]+=bnac;
-	  if((iperturb[0]!=0)&&(abs(*nmethod)==1)){
-	    if(fabs(bnac)>cam[1]){
-	      cam[1]=fabs(bnac);
-	      cam[4]=nactdof[mt*i]-0.5;
+	ITG _nt=*num_cpus; ITG _t;
+	double _lmax[64]; double _lidx[64]; int _lhit[64];
+	int _track=(iperturb[0]!=0)&&(abs(*nmethod)==1);
+	if(_nt<1) _nt=1;
+	if(_nt>64) _nt=64;
+	#pragma omp parallel num_threads(_nt)
+	{
+	  int _tid=omp_get_thread_num();
+	  int _nth=omp_get_num_threads();
+	  ITG _chunk=(*nk+_nth-1)/_nth;
+	  ITG _s=_tid*_chunk,_e=_s+_chunk;
+	  double _lv=-1.,_li=0.; int _hit=0;
+	  if(_e>*nk) _e=*nk;
+	  for(ITG _i=_s;_i<_e;_i++){
+	    ITG _d;
+	    double _b;
+	    if(nactdof[mt*_i]<=0) continue;
+	    _d=nactdof[mt*_i];
+	    _b=b[_d-1];
+	    v[mt*_i]+=_b;
+	    if(_track){
+	      double _a=fabs(_b);
+	      if(_a>_lv){_lv=_a;_li=_d-0.5;_hit=1;}
 	    }
+	  }
+	  _lmax[_tid]=_lv; _lidx[_tid]=_li; _lhit[_tid]=_hit;
+	}
+	if(_track){
+	  for(_t=0;_t<_nt;_t++){
+	    if(_lhit[_t]&&_lmax[_t]>cam[1]){cam[1]=_lmax[_t];cam[4]=_lidx[_t];}
 	  }
 	}
       }
@@ -97,33 +134,42 @@ void resultsini(ITG *nk,double *v,ITG *ithermal,char *filab,ITG *iperturb,
       /* transient thermal step */
 
       if(ithermal[0]>1){
-	for(i=0;i<*nk;i++){
-	  veold[mt*i]=0.;
-	  if(nactdof[mt*i]>0){
-	    bnac=b[nactdof[mt*i]-1];
-	  }else{
-	    continue;
-	  }
-	  v[mt*i]+=bnac;
-	  if(fabs(bnac)>cam[1]){
-	    cam[1]=fabs(bnac);
-	    cam[4]=nactdof[mt*i]-0.5;
-	  }
-
-	  /* maximum change is not taken into account for network nodes */
-
-	  if(*network>0){
-	    if(iponoeln[i]==0){
-	      if(cam[2]<fabs(v[mt*i]-vini[mt*i])){
-		cam[2]=fabs(v[mt*i]-vini[mt*i]);
-	      }
+	/* cam[1]/cam[4] unconditionally tracked here (unlike static
+	   above); cam[2] is a plain max. Ordered merge reproduces serial. */
+	ITG _nt=*num_cpus; ITG _t;
+	double _lmax1[64]; double _lidx1[64]; int _lhit1[64];
+	double _lmax2[64]; int _lhit2[64];
+	if(_nt<1) _nt=1;
+	if(_nt>64) _nt=64;
+	#pragma omp parallel num_threads(_nt)
+	{
+	  int _tid=omp_get_thread_num();
+	  int _nth=omp_get_num_threads();
+	  ITG _chunk=(*nk+_nth-1)/_nth;
+	  ITG _s=_tid*_chunk,_e=_s+_chunk;
+	  double _lv1=-1.,_li1=0.,_lv2=-1.; int _hit1=0,_hit2=0;
+	  if(_e>*nk) _e=*nk;
+	  for(ITG _i=_s;_i<_e;_i++){
+	    ITG _d;
+	    double _b,_dv;
+	    veold[mt*_i]=0.;
+	    if(nactdof[mt*_i]<=0) continue;
+	    _d=nactdof[mt*_i];
+	    _b=b[_d-1];
+	    v[mt*_i]+=_b;
+	    if(fabs(_b)>_lv1){_lv1=fabs(_b);_li1=_d-0.5;_hit1=1;}
+	    /* maximum change is not taken into account for network nodes */
+	    if((*network<=0)||(iponoeln[_i]!=0)){
+	      _dv=fabs(v[mt*_i]-vini[mt*_i]);
+	      if(_dv>_lv2){_lv2=_dv;_hit2=1;}
 	    }
-	  }else{
-	    if(cam[2]<fabs(v[mt*i]-vini[mt*i])){
-	      cam[2]=fabs(v[mt*i]-vini[mt*i]);
-	    }
 	  }
-	    
+	  _lmax1[_tid]=_lv1; _lidx1[_tid]=_li1; _lhit1[_tid]=_hit1;
+	  _lmax2[_tid]=_lv2; _lhit2[_tid]=_hit2;
+	}
+	for(_t=0;_t<_nt;_t++){
+	  if(_lhit1[_t]&&_lmax1[_t]>cam[1]){cam[1]=_lmax1[_t];cam[4]=_lidx1[_t];}
+	  if(_lhit2[_t]&&_lmax2[_t]>cam[2])cam[2]=_lmax2[_t];
 	}
       }
     }

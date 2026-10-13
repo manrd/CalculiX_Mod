@@ -1481,7 +1481,7 @@ void electromagnetics(double **co,ITG *nk,ITG **konp,ITG **ipkonp,char **lakonp,
 	     double *pmastload);
 
 void elementcpuload(ITG *neapar,ITG *nebpar,ITG *ne,ITG *ipkon,
-                             ITG *num_cpus);
+                             char *lakon,ITG *num_cpus);
 
 void FORTRAN(elementpernode,(ITG *iponoel,ITG *inoel,char *lakon,ITG *ipkon,
                              ITG *kon,ITG *ne));
@@ -1759,6 +1759,8 @@ void frd(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne0,
          double *cdn,ITG *mortar,double *cdnr,double *cdni,ITG *nmat,
          ITG *ielprop,double *prop,double *sti,double *damn,
 	 double **errnp,double *accold);
+
+void frd_close(void);
 
 void frdcyc(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne,double *v,
             double *stn,ITG *inum,ITG *nmethod,ITG *kode,char *filab,

@@ -478,6 +478,8 @@ void spooles_factor(double *ad, double *au,  double *adb, double *aub,
 		fprintf(stderr, "\n fatal error in spooles.c"
 			"\n unable to open file spooles.out\n");
 	}
+	/* batch the (rare at default verbosity) log lines: same bytes */
+	setvbuf(msgFile,NULL,_IOFBF,1<<16);
 
 	/*
 	 * Create the InpMtx object from the CalculiX matrix
@@ -837,6 +839,8 @@ void spooles_factor_rad(double *ad, double *au,  double *adb, double *aub,
 		fprintf(stderr, "\n fatal error in spooles.c"
 			"\n unable to open file spooles.out\n");
 	}
+	/* batch the (rare at default verbosity) log lines: same bytes */
+	setvbuf(msgFilf,NULL,_IOFBF,1<<16);
 
 	/*
 	 * Create the InpMtx object from the Calculix matrix

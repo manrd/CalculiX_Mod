@@ -92,7 +92,7 @@ void mafillsmmain(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,
       
   /* variables for multithreading procedure */
     
-  ITG sys_cpus,*ithread=NULL;
+  ITG sys_cpus;
   char *env,*envloc,*envsys;
     
   num_cpus = 0;
@@ -145,8 +145,6 @@ void mafillsmmain(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,
 
   if(*ne<num_cpus) num_cpus=*ne;
     
-  pthread_t tid[num_cpus];
-    
   /* determining the element bounds in each thread */
     
   NNEW(neapar,ITG,num_cpus);
@@ -159,14 +157,14 @@ void mafillsmmain(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,
        thermal contributions are not covered by
        mafillsmas.f) */
 
-    elementcpuload(neapar,nebpar,ne,ipkon,&num_cpus);
+    elementcpuload(neapar,nebpar,ne,ipkon,lakon,&num_cpus);
 
   }else{
 
     /* asymmetric mechanical calculations:
        do not include contact elements */
 
-    elementcpuload(neapar,nebpar,ne0,ipkon,&num_cpus);
+    elementcpuload(neapar,nebpar,ne0,ipkon,lakon,&num_cpus);
   }
 
   /* determine nzl */
@@ -269,18 +267,18 @@ void mafillsmmain(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,
     printf(" Using up to %" ITGFORMAT " cpu(s) for the symmetric stiffness/mass contributions.\n\n", num_cpus);
   }
     
-  /* create threads and wait */
-    
+  /* create threads and wait (OpenMP persistent pool: no per-iteration
+     pthread_create/join; worker function unchanged, one element range
+     per OpenMP thread, same disjoint fext/fnext segments as before) */
+
   double _t_mt0 = ccx_prof_ms();
-  NNEW(ithread,ITG,num_cpus);
-  for(i=0; i<num_cpus; i++)  {
-    ithread[i]=i;
-    pthread_create(&tid[i], NULL, (void *)mafillsmmt, (void *)&ithread[i]);
+  #pragma omp parallel num_threads(num_cpus)
+  {
+    ITG tid_omp = (ITG)omp_get_thread_num();
+    mafillsmmt(&tid_omp);
   }
-  for(i=0; i<num_cpus; i++)
-    pthread_join(tid[i], NULL);
-    
-  SFREE(ithread);SFREE(neapar);SFREE(nebpar);
+
+  SFREE(neapar);SFREE(nebpar);
   double _t_mt1 = ccx_prof_ms();
 
   if(*rhsi==1){

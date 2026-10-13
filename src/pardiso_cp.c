@@ -25,9 +25,7 @@
 
 /* next 3 lines are for the simulateous use of PARDISO and PaStiX */
 
-#ifdef COMPANY
 #include <mkl_service.h>
-#endif
 
 ITG *icolpardisocp=NULL,*pointerscp=NULL,iparmcp[64];
 long long ptcp[64];
@@ -311,9 +309,7 @@ void pardiso_factor_cp(double *ad, double *au, double *adb, double *aub,
 
 /* next 3 lines are for the simulateous use of PARDISO and PaStiX */
 
-#ifdef COMPANY
   mkl_domain_set_num_threads(mthread_mkl_cp,MKL_DOMAIN_PARDISO);
-#endif
 
   FORTRAN(pardiso,(ptcp,&maxfct,&mnum,&mtype,&phase,neq,aupardisocp,
 		   pointerscp,icolpardisocp,perm,&nrhs,iparmcp,&msglvl,

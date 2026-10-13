@@ -190,7 +190,7 @@ void resultsinduction(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,
 
 	NNEW(neapar,ITG,num_cpus);
 	NNEW(nebpar,ITG,num_cpus);
-	elementcpuload(neapar,nebpar,ne,ipkon,&num_cpus);
+	elementcpuload(neapar,nebpar,ne,ipkon,lakon,&num_cpus);
 
 	co1=co;kon1=kon;ipkon1=ipkon;lakon1=lakon;v1=v;elcon1=elcon;
         nelcon1=nelcon;ielmat1=ielmat;ntmat1_=ntmat_;vini1=vini;dtime1=dtime;
@@ -227,7 +227,7 @@ void resultsinduction(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,
 
 	NNEW(neapar,ITG,num_cpus);
 	NNEW(nebpar,ITG,num_cpus);
-	elementcpuload(neapar,nebpar,ne,ipkon,&num_cpus);
+	elementcpuload(neapar,nebpar,ne,ipkon,lakon,&num_cpus);
 
 	NNEW(fn1,double,num_cpus*mt**nk);
 	NNEW(qa1,double,num_cpus*4);

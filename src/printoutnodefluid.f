@@ -73,7 +73,9 @@
      &            xmach(node)
       endif
 !
-      flush(5)
+! unit 5 (.dat) is flushed once at close(5) in closefile.f; flushing here
+! would cost one syscall per node per increment with no crash-durability
+! gain (flush != fsync).
 !
       return
       end

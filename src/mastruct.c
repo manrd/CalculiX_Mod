@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <pthread.h>
+#include <omp.h>
 #include "CalculiX.h"
 #include "ccx_prof.h"
 
@@ -47,7 +48,7 @@ void mastruct(ITG *nk, ITG *kon, ITG *ipkon, char *lakon, ITG *ne,
     ist1,ist2,node1,node2,nmast,ifree,icalcnactdof,
     index1,index2,m,node,nzs_,ist,kflag,indexe,nope,*mast1=NULL,
     *irow=NULL,icolumn,nmastboun,mt=mi[1]+1,*next=NULL,nopeold=0,
-    indexeold,identical,jstart,iatleastonenonzero,idof,ndof,*ithread=NULL;
+    indexeold,identical,jstart,iatleastonenonzero,idof,ndof;
 
   /* variables for multithreading procedure */
 
@@ -113,11 +114,9 @@ void mastruct(ITG *nk, ITG *kon, ITG *ipkon, char *lakon, ITG *ne,
 
     icalcnactdof=1;
 
-    /* initialisation of nactdof */
-      
-    for(i=0;i<mt**nk;++i){
-      nactdof[i]=0;
-    }
+    /* initialisation of nactdof (memset: single pass, wide stores) */
+
+    memset(nactdof,0,(size_t)mt*(size_t)(*nk)*sizeof(ITG));
       
     /* determining the mechanical active degrees of freedom due to elements */
 
@@ -343,9 +342,8 @@ void mastruct(ITG *nk, ITG *kon, ITG *ipkon, char *lakon, ITG *ne,
        next(ipointer(i))  points to further nonzero elements in 
        column i */
       
-  for(i=0;i<4**nk;++i){
-    ipointer[i]=0;
-  }
+  /* ipointer reset: memset (wide stores), then mechanical entries */
+  memset(ipointer,0,(size_t)4*(size_t)(*nk)*sizeof(ITG));
 
   /* mechanical entries */
     
@@ -827,18 +825,15 @@ void mastruct(ITG *nk, ITG *kon, ITG *ipkon, char *lakon, ITG *ne,
   if(neq[1]<num_cpus) num_cpus=neq[1];
   
   printf(" Using up to %" ITGFORMAT " cpu(s) for setting up the structure of the matrix.\n\n", num_cpus);
-  
-  pthread_t tid[num_cpus];
 
   neq1=neq;irow1=irow;mast11=mast1;jq1=jq;icol1=icol;kflag1=kflag;
-	  
-  NNEW(ithread,ITG,num_cpus);
-  for(i=0; i<num_cpus; i++)  {
-    ithread[i]=i;
-    pthread_create(&tid[i], NULL, (void *)sortingmt, (void *)&ithread[i]);
+
+  /* OpenMP persistent pool (worker unchanged, one column range per thread) */
+  #pragma omp parallel num_threads(num_cpus)
+  {
+    ITG tid_omp = (ITG)omp_get_thread_num();
+    sortingmt(&tid_omp);
   }
-  for(i=0; i<num_cpus; i++)  pthread_join(tid[i], NULL);
-  SFREE(ithread);
   double _t_sort = ccx_prof_ms();
 
   /* compacting already-deduplicated columns */
@@ -901,18 +896,15 @@ void mastruct(ITG *nk, ITG *kon, ITG *ipkon, char *lakon, ITG *ne,
     if((neq[2]-neq[1])<num_cpus) num_cpus=neq[2]-neq[1];
 
     printf(" Using up to %" ITGFORMAT " cpu(s) for setting up the structure of the matrix.\n\n", num_cpus);
-  
-    pthread_t tid[num_cpus];
 
     neq1=neq;irow1=irow;mast11=mast1;jq1=jq;kflag1=kflag;
-	  
-    NNEW(ithread,ITG,num_cpus);
-    for(i=0; i<num_cpus; i++)  {
-      ithread[i]=i;
-      pthread_create(&tid[i], NULL, (void *)sortingfreqmt, (void *)&ithread[i]);
+
+    /* OpenMP persistent pool (worker unchanged) */
+    #pragma omp parallel num_threads(num_cpus)
+    {
+      ITG tid_omp = (ITG)omp_get_thread_num();
+      sortingfreqmt(&tid_omp);
     }
-    for(i=0; i<num_cpus; i++)  pthread_join(tid[i], NULL);
-    SFREE(ithread);
 
     /* removing duplicate entries */
 

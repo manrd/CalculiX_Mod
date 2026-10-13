@@ -260,7 +260,7 @@ void objectivemain_se(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,
 	    
       NNEW(neapar2,ITG,num_cpuse);
       NNEW(nebpar2,ITG,num_cpuse);
-      elementcpuload(neapar2,nebpar2,ne,ipkon,&num_cpuse);
+      elementcpuload(neapar2,nebpar2,ne,ipkon,lakon,&num_cpuse);
 	    
       NNEW(g01,double,num_cpuse**nobject);
 	    
@@ -344,7 +344,7 @@ void objectivemain_se(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,
 	    
       NNEW(neapar2,ITG,num_cpuse);
       NNEW(nebpar2,ITG,num_cpuse);
-      elementcpuload(neapar2,nebpar2,ne,ipkon,&num_cpuse);
+      elementcpuload(neapar2,nebpar2,ne,ipkon,lakon,&num_cpuse);
 	    
       NNEW(g01,double,num_cpuse**nobject);
 	    

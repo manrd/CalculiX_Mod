@@ -1955,6 +1955,7 @@ void nonlingeo(double **cop,ITG *nk,ITG **konp,ITG **ipkonp,char **lakonp,
       }
 
       if((*mortar!=-1)||(masslesslinear==0)||(iinc==1)){
+	double _t_ct0=ccx_prof_ms();
 	contact(&ncont,ntie,tieset,nset,set,istartset,iendset,
 		ialset,itietri,lakon,ipkon,kon,koncont,ne,cg,straight,nkon,
 		co,vold,ielmat,cs,elcon,istep,&iinc,&iit,ncmat_,ntmat_,
@@ -1966,6 +1967,8 @@ void nonlingeo(double **cop,ITG *nk,ITG **konp,ITG **ipkonp,char **lakonp,
 		xnoels,mortar,pslavsurf,pmastsurf,clearini,&theta,
 		xstateini,xstate,nstate_,&icutb,&ialeatoric,jobnamef,
 		&alea,auw,jqw,iroww,&nzsw);
+	CCX_PROF_LOG("nonlingeo: contact_pre=%.2f ms [ne=%d]",
+		     ccx_prof_ms()-_t_ct0,(int)*ne);
       }
    
       /* check whether, for a dynamic calculation, contact damping 
@@ -2388,6 +2391,7 @@ void nonlingeo(double **cop,ITG *nk,ITG **konp,ITG **ipkonp,char **lakonp,
 
 	  neold=*ne;
 	  *ne=ne0;*nkon=nkon0;
+	  double _t_ct0=ccx_prof_ms();
 	  contact(&ncont,ntie,tieset,nset,set,istartset,iendset,
 		  ialset,itietri,lakon,ipkon,kon,koncont,ne,cg,
 		  straight,nkon,co,vold,ielmat,cs,elcon,istep,
@@ -2399,6 +2403,8 @@ void nonlingeo(double **cop,ITG *nk,ITG **konp,ITG **ipkonp,char **lakonp,
 		  filab,mcs,ics,&nasym,xnoels,mortar,pslavsurf,pmastsurf,
 		  clearini,&theta,xstateini,xstate,nstate_,&icutb,
 		  &ialeatoric,jobnamef,&alea,auw,jqw,iroww,&nzsw);
+	  CCX_PROF_LOG("nonlingeo: contact_iter=%d time=%.2f ms [nespr=%d]",
+		       (int)iit,ccx_prof_ms()-_t_ct0,(int)(*ne-ne0));
 
 	  /* check whether, for a dynamic calculation, contact damping is 
 	     involved */

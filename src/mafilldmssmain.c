@@ -138,7 +138,7 @@ void mafilldmssmain(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,
     NNEW(neapar,ITG,num_cpus);
     NNEW(nebpar,ITG,num_cpus);
 
-    elementcpuload(neapar,nebpar,ne,ipkon,&num_cpus);
+    elementcpuload(neapar,nebpar,ne,ipkon,lakon,&num_cpus);
 
     /* allocating fields for mass and stiffness matrix */
 

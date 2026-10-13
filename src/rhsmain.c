@@ -116,7 +116,7 @@ void rhsmain(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne,
 
   NNEW(neapar,ITG,num_cpus);
   NNEW(nebpar,ITG,num_cpus);
-  elementcpuload(neapar,nebpar,ne,ipkon,&num_cpus);
+  elementcpuload(neapar,nebpar,ne,ipkon,lakon,&num_cpus);
 
   /* allocating memory for the nodal external forces (only for explicit
      dynamic calculations) */
