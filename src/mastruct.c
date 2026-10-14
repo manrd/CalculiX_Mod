@@ -829,10 +829,14 @@ void mastruct(ITG *nk, ITG *kon, ITG *ipkon, char *lakon, ITG *ne,
   neq1=neq;irow1=irow;mast11=mast1;jq1=jq;icol1=icol;kflag1=kflag;
 
   /* OpenMP persistent pool (worker unchanged, one column range per thread) */
+  /* num_cpus can be 0 (no dofs in this range): upstream then created no threads, but
+     num_threads(0) still starts the default team and the worker divides by num_cpus */
+  if(num_cpus>0){
   #pragma omp parallel num_threads(num_cpus)
   {
     ITG tid_omp = (ITG)omp_get_thread_num();
     sortingmt(&tid_omp);
+  }
   }
   double _t_sort = ccx_prof_ms();
 
@@ -900,10 +904,14 @@ void mastruct(ITG *nk, ITG *kon, ITG *ipkon, char *lakon, ITG *ne,
     neq1=neq;irow1=irow;mast11=mast1;jq1=jq;kflag1=kflag;
 
     /* OpenMP persistent pool (worker unchanged) */
+    /* num_cpus can be 0 (no dofs in this range): upstream then created no threads, but
+       num_threads(0) still starts the default team and the worker divides by num_cpus */
+    if(num_cpus>0){
     #pragma omp parallel num_threads(num_cpus)
     {
       ITG tid_omp = (ITG)omp_get_thread_num();
       sortingfreqmt(&tid_omp);
+    }
     }
 
     /* removing duplicate entries */
