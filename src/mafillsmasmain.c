@@ -180,10 +180,8 @@ void mafillsmasmain(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne,
   double _t0 = ccx_prof_ms();
   ad1 = ad;
   au1 = au;
-  #pragma omp parallel for schedule(static) num_threads(num_cpus)
-  for(i=nzs[2];i<(nzs[2]+nzs[1]);i++){
-    au[i]=0.;
-  }
+  /* no zeroing here: upstream ADDED zero-initialised per-thread buffers onto au,
+     so the existing contents of au (symmetric part) must be kept */
   double _t_alloc = ccx_prof_ms();
 
   /* allocating memory for nmethod; if the Jacobian determinant
